@@ -13,7 +13,7 @@ var cors = require('cors');
 var querystring = require('querystring');
 var cookieParser = require('cookie-parser');
 var SpotifyWebApi = require('spotify-web-api-node');
-
+var userInfo;
 // credentials are optional
 var spotifyApi = new SpotifyWebApi({
   clientId: 'd0a977ff7e984164aba6e8f5c6523deb',
@@ -53,7 +53,7 @@ app.get('/login', function(req, res) {
   res.cookie(stateKey, state);
 
   // your application requests authorization
-  var scope = 'user-read-private user-read-email user-read-recently-played playlist-read-private';
+  var scope = 'user-read-private user-read-email user-read-recently-played playlist-read-private playlist-read-collaborative';
   res.redirect('https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -128,8 +128,6 @@ app.get('/callback', function(req, res) {
 });
 
 app.get('/refresh_token', function(req, res) {
-
-  // requesting access token from refresh token
   var refresh_token = req.query.refresh_token;
   var authOptions = {
     url: 'https://accounts.spotify.com/api/token',
@@ -151,17 +149,22 @@ app.get('/refresh_token', function(req, res) {
   });
 });
 
+app.get('/get_me',function(req,res){
+  res.send({
+    user:userInfo
+  })
+})
+
 app.get('/user_playlist', function(req, res) {
-  //res.send("WHEEE");
   spotifyApi.getMe()
   .then(function(data) {
+    userInfo=data.body;
     spotifyApi.getUserPlaylists(data.body.id)
       .then(function(data) {
         console.log('Retrieved playlists', data.body);
          res.send({
           'items': data.body
         }); 
-        //res.send("WHEEE");
       },function(err) {
         console.log('Something went wrong!', err);
         res.send("error1");
@@ -170,8 +173,44 @@ app.get('/user_playlist', function(req, res) {
     console.log('Something went wrong!', err);
     res.send("error2");
   });
-
 });
+
+app.get('/playlist_tracks', function(req, res) {
+  console.log('oi');
+  console.log(req.query);
+  
+  var playlist_id = req.query.playlist_id;
+  console.log(playlist_id);
+  spotifyApi.getPlaylistTracks(playlist_id)
+  .then(function(data){
+    console.log(data);
+      res.send({
+        'tracks': data.body
+      });  
+    },function(err) {
+      console.log('Something went wrong!', err);
+      res.send("error1");
+    }
+  )
+});
+
+app.get('/get_user', function(req, res) {
+  var user_id = req.query.user_id;
+  spotifyApi.getUser(user_id)
+  .then(function(data){
+      res.send({
+        'user': data.body
+      });  
+    },function(err) {
+      console.log('Something went wrong!', err);
+      res.send("error1");
+    }
+  )
+});
+
+
 //https://developer.spotify.com/console/get-current-user-top-artists-and-tracks/?type=artists&time_range=medium_term&limit=10&offset=5
+
+
 console.log('Listening on 8888');
 app.listen(8888);
