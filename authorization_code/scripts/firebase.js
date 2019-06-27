@@ -9,47 +9,75 @@ firebase.initializeApp({
 var db = firebase.database()
 var ref = db.ref('/')
 
-function createUser(user) {
-    var usersRef = ref.child('users')
-    newUserRef = usersRef.push(user)
-}
+/*
+    Database View
 
-function saveRate(userID, musicID, rate) {
-    var userRef = ref.child('users').child(userID)
+    {
+        playlistFirebaseID: {
+            playlistID: spotifyPlaylistID,
 
-    userRef.set({
-        rate: rate,
-    })
-    
-}
+            musicFirebaseID: {
+                musicID: spotifyMusicID,
+                userID: spotifyUserID,
+                rate: int,
+            },
 
-function getAllUsers() {
-    var usersRef = ref.child("/users")
-
-    return new Promise((resolve, reject) => {
-        usersRef.once("value")
-            .then((snapshot) => {
-                resolve(Object.keys(snapshot.val()))
-            })
-    })
-    
-}
-
-module.exports = {
-    mockData: () => {
-        var mockData = ref.child('mock')
-        mockData.set({
-            mockSucessful: "YES"
-        })
-
-        var user = new Object
-        user.name = "João Vasconcelos"
-        user.age = 25
-        getAllUsers(user).then((arrayObjects) => {
-            console.log(arrayObjects)
-        })
+        },
 
     },
 
-    saveRate: saveRate,
+*/
+
+function pushPlaylist(playlist) {
+    var playlistsRef = ref.child('/playlists')
+
+    return new Promise((resolve, reject) => {
+        playlistRef = playlistsRef.push(playlist)
+        resolve(playlistRef)
+    })
+}
+
+function pushMusic(playlistID, music) {
+    playlistRef = ref.child(`playlists/${playlistID}`)
+
+    return new Promise((resolve, reject) => {
+        musicRef = playlistRef.push(music)
+        resolve(musicRef)
+    })
+}
+
+function getPlaylist(playlistID) {
+    var playlistRef = ref.child(`/playlists/${playlistID}`)
+
+    playlistRef.once('value').then((playlistObject) => {
+        resolve(playlistObject.val())
+    }, (error) => {
+        reject(error)
+    })
+}
+
+function getAllPlaylists() {
+    var playlistRef = ref.child('/playlists')
+
+    return new Promise((resolve, reject) => {
+        playlistRef.once((playlists) => {
+            resolve(playlists.val())
+        }, (error) => {
+            reject(error)
+        })
+    })
+}
+
+
+
+module.exports = {
+    mockData: () => {
+        var playlist = new Object
+        playlist.ID = "playlistSpotifyID - 1"
+
+        pushPlaylist(playlist).then((playlistRef) => {
+            console.log(playlistRef.key)
+        })
+    },
+
 }
