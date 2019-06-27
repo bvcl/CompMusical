@@ -11,7 +11,7 @@ var ref = db.ref('/')
 
 function createUser(user) {
     var usersRef = ref.child('users')
-    x = ref.push(user)
+    newUserRef = usersRef.push(user)
 }
 
 function saveRate(userID, musicID, rate) {
@@ -19,6 +19,18 @@ function saveRate(userID, musicID, rate) {
 
     userRef.set({
         rate: rate,
+    })
+    
+}
+
+function getAllUsers() {
+    var usersRef = ref.child("/users")
+
+    return new Promise((resolve, reject) => {
+        usersRef.once("value")
+            .then((snapshot) => {
+                resolve(Object.keys(snapshot.val()))
+            })
     })
     
 }
@@ -33,7 +45,9 @@ module.exports = {
         var user = new Object
         user.name = "João Vasconcelos"
         user.age = 25
-        createUser(user)
+        getAllUsers(user).then((arrayObjects) => {
+            console.log(arrayObjects)
+        })
 
     },
 
