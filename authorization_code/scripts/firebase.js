@@ -37,6 +37,36 @@ function pushPlaylist(ref, playlist) {
     })
 }
 
+function playlistExists(ref,playlistId){
+    var playlistsRef = ref.child('/playlists')
+    return new Promise((resolve, reject) => {
+        playlistsRef.once("value", (playlists) => {
+            Object.keys(playlists.val()).forEach(ele=>{
+                if(playlists.val()[ele].playlistID==playlistId){
+                    resolve(ele);
+                    return;
+                }
+            })
+            resolve(null);
+        })
+    })
+}
+
+function getRateOfTrack(ref,playlistID,userId,trackId){
+    musicsRef = ref.child(`playlists/${playlistID}/musics`)
+    return new Promise((resolve, reject) => {
+        musicsRef.once("value", (musics) => {
+            Object.keys(musics.val()).forEach(ele=>{
+                if(musics.val()[ele].UserID==userId && musics.val()[ele].musicID==trackId){
+                    resolve(musics.val()[ele].rate);
+                    return;
+                }
+            })
+            resolve(-1);
+        })
+    })
+}
+
 function pushMusic(ref, playlistID, music) {
     playlistRef = ref.child(`playlists/${playlistID}/musics`)
 
@@ -89,7 +119,7 @@ module.exports = {
         var playlist = new Object
         playlist.playlistID = "playlistSpotifyID - 1"
         var ref = root.child("/mock")
-        pushPlaylist(ref, playlist).then((playlistRef) => {
+        /* pushPlaylist(ref, playlist).then((playlistRef) => {
             var playlistID = playlistRef.key
             var music1 = new Object
 
@@ -121,7 +151,60 @@ module.exports = {
                     console.log(music.rate)
                 })
             })
+        }) */
+    },
+    pushRank: (playlistId,music_user) => {
+        var playlist = new Object;
+        playlist.playlistID = playlistId;
+        var ref = root.child("/mock");
+        var respReturn = "done";
+        return new Promise((resolve, reject) => {
+            playlistExists(ref,playlistId).then(resp=>{
+                //playlist já existe
+                if(resp!=null){
+                    getRateOfTrack(ref,resp,music_user.UserID,music_user.musicID).then(resp=>{
+                        //usuario ainda nao votou
+                        if(resp==-1){
+                            pushMusic(ref, resp, music_user)
+                            resolve(respReturn);
+                        }
+                        //usuario ja votou
+                        else{
+                            respReturn = 'usuario ja votou'; 
+                            console.log('usuario ja votou');
+                            resolve(respReturn);
+                        }
+                    })
+                }
+                //playlist não existe
+                else{
+                    pushPlaylist(ref, playlist).then((playlistRef) => {
+                        var playlistID = playlistRef.key
+                        pushMusic(ref, playlistID, music_user)
+                        resolve(respReturn);
+                    })
+                }
+            })
         })
     },
+    getTrackRate: (playlistId,music_user) =>{
+        var playlist = new Object;
+        playlist.playlistID = playlistId;
+        var ref = root.child("/mock");
+        return new Promise((resolve, reject) => {
+            playlistExists(ref,playlistId).then(resp=>{
+                //playlist já existe
+                if(resp!=null){
+                    getRateOfTrack(ref,resp,music_user.UserID,music_user.musicID).then(resp=>{
+                        resolve(resp);
+                    })
+                }
+                //playlist não existe
+                else{
+                    resolve(-1)
+                }
+            })
+        })
+    }
 
 }

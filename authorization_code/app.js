@@ -210,6 +210,43 @@ app.get('/get_user', function(req, res) {
   )
 });
 
+app.get('/post_rank', function(req, res) {
+  var trackId = req.query.trackId;
+  var playlistId = req.query.playlistId;
+  var userId = req.query.userId;
+  var rank = req.query.rank;
+
+  var music_user = new Object
+  music_user.musicID = trackId
+  music_user.UserID = userId
+  music_user.rate = rank
+  
+  database.pushRank(playlistId,music_user).then(resp=>{
+    console.log(resp);
+  });
+  
+  res.end('post done');
+});
+
+app.get('/get_track_rate', function(req, res) {
+  var trackId = req.query.trackId;
+  var playlistId = req.query.playlistId;
+  var userId = req.query.userId;
+  var rank = -1;
+
+  var music_user = new Object
+  music_user.musicID = trackId
+  music_user.UserID = userId
+  music_user.rate = rank
+  
+  database.getTrackRate(playlistId,music_user).then(resp=>{
+    console.log(resp);
+    res.send({
+      'rate': resp
+    });
+  });
+});
+
 
 //https://developer.spotify.com/console/get-current-user-top-artists-and-tracks/?type=artists&time_range=medium_term&limit=10&offset=5
 

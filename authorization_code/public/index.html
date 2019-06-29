@@ -37,6 +37,9 @@
         height: 50px;
         animation: spin 2s linear infinite;
       }
+      .goldStar {
+        color: gold;
+      }
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -127,11 +130,11 @@
             <td style="border-top: 1px solid black;border-right: 1px solid black">{{this.added_by.name}}</td>
             <td style="border-top: 1px solid black;">
                 <div class="rating">
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" onclick="giveRank(this.id,this.getAttribute('playlistId'),5)" >☆</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" onclick="giveRank(this.id,this.getAttribute('playlistId'),4)">☆</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" onclick="giveRank(this.id,this.getAttribute('playlistId'),3)">☆</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" onclick="giveRank(this.id,this.getAttribute('playlistId'),2)">☆</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" onclick="giveRank(this.id,this.getAttribute('playlistId'),1)">☆</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 5 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),5)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 4 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),4)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 3 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),3)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 2 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),2)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 1 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),1)">★</span>
                 </div>
             </td>
           </tr>
@@ -144,15 +147,24 @@
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script>
-      function giveRank(idMusical,playlistId,rank){
+      function giveRank(idMusica,playlistId,rank){
         $.ajax({
           type: "GET",
           url: '/get_me',
         }).done(function(data) {
-          console.log(idMusical);
-          console.log(playlistId);
-          console.log(data.user.id);
-          console.log(rank);
+          $.ajax({
+            type: "GET",
+            url: '/post_rank',
+            data: {
+              'trackId': idMusica,
+              'playlistId': playlistId,
+              'userId': data.user.id,
+              'rank': rank
+            }
+          }).done(function(data) {
+            console.log('ok');
+            console.log(data);
+          })
         })
       }
       function getTrack(playlistId) {
@@ -162,36 +174,61 @@
         var loadingVar = {};
         playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(loadingVar);
         console.log('getTrack');
+        var currentUserId;
         $.ajax({
-              type: "GET",
-              url: '/playlist_tracks',
-              data: {
-                'playlist_id': playlistId
-              }
-            }).done(function(data) {
-              var tracks = data.tracks.items;
-              uniq = [...new Set(tracks.map(o=>o.added_by.id))];
-              uniq.forEach(o => {
-                $.ajax({
-                  type: "GET",
-                  url: '/get_user',
-                  data: {
-                    'user_id': o
-                  }
-                }).done(function(data) {
-                  tracks.forEach(obj=>{
-                    if(obj.added_by.id==o)obj.added_by.name = data.user.display_name
-                  })
-                  var toPass = {
-                    tracks: tracks,
-                    loaded: true,
-                    playlistId:playlistId
-                  }
-                  playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
-                });  
+          type: "GET",
+          url: '/get_me',
+        }).done(function(data) {
+          currentUserId = data.user.id;
+          $.ajax({
+                type: "GET",
+                url: '/playlist_tracks',
+                data: {
+                  'playlist_id': playlistId
+                }
+              }).done(function(data) {
+                var tracks = data.tracks.items;
+                uniq = [...new Set(tracks.map(o=>o.added_by.id))];
+                uniq.forEach(o => {
+                  $.ajax({
+                    type: "GET",
+                    url: '/get_user',
+                    data: {
+                      'user_id': o
+                    }
+                  }).done(function(data) {
+                    var promises = [];
+                    tracks.forEach(obj=>{
+                      if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
+                      var request = $.ajax({
+                        type: "GET",
+                        url: '/get_track_rate',
+                        data: {
+                          'trackId': obj.track.id,
+                          'playlistId': playlistId,
+                          'userId': currentUserId,
+                        }
+                      }).done(function(data) {
+                        console.log('getting rates:');
+                        console.log(data);
+                        obj.track.rate = (data.rate);
+                      })
+                      promises.push(request);
+                    })
+                    $.when.apply(null, promises).done(function(){
+                      var toPass = {
+                        tracks: tracks,
+                        loaded: true,
+                        playlistId:playlistId
+                      }
+                      playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
+                    })
+                  });  
+                });
+                console.log(tracks);
               });
-              console.log(tracks);
-            });
+          
+        })
       }
       (function() {
 
@@ -208,6 +245,35 @@
           }
           return hashParams;
         }
+        Handlebars.registerHelper('compare', function(lvalue, rvalue, options) {
+
+          if (arguments.length < 3)
+              throw new Error("Handlerbars Helper 'compare' needs 2 parameters");
+
+          operator = options.hash.operator || "==";
+
+          var operators = {
+              '==':       function(l,r) { return l == r; },
+              '===':      function(l,r) { return l === r; },
+              '!=':       function(l,r) { return l != r; },
+              '<':        function(l,r) { return l < r; },
+              '>':        function(l,r) { return l > r; },
+              '<=':       function(l,r) { return l <= r; },
+              '>=':       function(l,r) { return l >= r; },
+              'typeof':   function(l,r) { return typeof l == r; }
+          }
+
+          if (!operators[operator])
+              throw new Error("Handlerbars Helper 'compare' doesn't know the operator "+operator);
+
+          var result = operators[operator](lvalue,rvalue);
+
+          if( result ) {
+              return options.fn(this);
+          } else {
+              return options.inverse(this);
+          }
+        });
         var userProfileSource = document.getElementById('user-profile-template').innerHTML,
             userProfileTemplate = Handlebars.compile(userProfileSource),
             userProfilePlaceholder = document.getElementById('user-profile');
