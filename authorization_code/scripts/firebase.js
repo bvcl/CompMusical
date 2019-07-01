@@ -8,7 +8,8 @@ firebase.initializeApp({
 
 var db = firebase.database()
 var root = db.ref('/')
-
+var rootChild = "/mock";
+var globalRef = root.child(rootChild);
 /*
     Database View
 
@@ -118,7 +119,6 @@ module.exports = {
     mockData: () => {
         var playlist = new Object
         playlist.playlistID = "playlistSpotifyID - 1"
-        var ref = root.child("/mock")
         /* pushPlaylist(ref, playlist).then((playlistRef) => {
             var playlistID = playlistRef.key
             var music1 = new Object
@@ -156,16 +156,16 @@ module.exports = {
     pushRank: (playlistId,music_user) => {
         var playlist = new Object;
         playlist.playlistID = playlistId;
-        var ref = root.child("/mock");
         var respReturn = "done";
         return new Promise((resolve, reject) => {
-            playlistExists(ref,playlistId).then(resp=>{
+            playlistExists(globalRef,playlistId).then(resp=>{
                 //playlist já existe
                 if(resp!=null){
-                    getRateOfTrack(ref,resp,music_user.UserID,music_user.musicID).then(resp=>{
+                    var playListRef = resp;
+                    getRateOfTrack(globalRef,resp,music_user.UserID,music_user.musicID).then(resp=>{
                         //usuario ainda nao votou
                         if(resp==-1){
-                            pushMusic(ref, resp, music_user)
+                            pushMusic(globalRef, playListRef, music_user)
                             resolve(respReturn);
                         }
                         //usuario ja votou
@@ -178,9 +178,41 @@ module.exports = {
                 }
                 //playlist não existe
                 else{
-                    pushPlaylist(ref, playlist).then((playlistRef) => {
+                    pushPlaylist(globalRef, playlist).then((playlistRef) => {
                         var playlistID = playlistRef.key
-                        pushMusic(ref, playlistID, music_user)
+                        pushMusic(globalRef, playlistID, music_user)
+                        resolve(respReturn);
+                    })
+                }
+            })
+        })
+    },
+    pushJoinPlaylist: (playlistId,tracksId,userId)=>{
+        var playlist = new Object;
+        playlist.playlistID = playlistId;
+        var respReturn = "done";
+        return new Promise((resolve, reject) => {
+            playlistExists(globalRef,playlistId).then(resp=>{
+                if(resp!=null){
+                    tracksId.forEach(obj=>{
+                        var music = new Object
+                        music.musicID = obj;
+                        music.UserID = userId;
+                        music.rate = -1;
+                        pushMusic(globalRef, resp, music)
+                    })
+                    resolve(respReturn);
+                }
+                else{
+                    pushPlaylist(globalRef, playlist).then((playlistRef) => {
+                        var playlistID = playlistRef.key
+                        tracksId.forEach(obj=>{
+                            var music = new Object
+                            music.musicID = obj;
+                            music.UserID = userId;
+                            music.rate = -1;
+                            pushMusic(globalRef, playlistID, music)
+                        })
                         resolve(respReturn);
                     })
                 }
@@ -190,18 +222,31 @@ module.exports = {
     getTrackRate: (playlistId,music_user) =>{
         var playlist = new Object;
         playlist.playlistID = playlistId;
-        var ref = root.child("/mock");
         return new Promise((resolve, reject) => {
-            playlistExists(ref,playlistId).then(resp=>{
+            playlistExists(globalRef,playlistId).then(resp=>{
                 //playlist já existe
                 if(resp!=null){
-                    getRateOfTrack(ref,resp,music_user.UserID,music_user.musicID).then(resp=>{
+                    getRateOfTrack(globalRef,resp,music_user.UserID,music_user.musicID).then(resp=>{
                         resolve(resp);
                     })
                 }
                 //playlist não existe
                 else{
                     resolve(-1)
+                }
+            })
+        })
+    },
+    getTracksOnDB: (playlistId)=>{
+        return new Promise((resolve, reject) => {
+            playlistExists(globalRef,playlistId).then(resp=>{
+                if(resp!=null){
+                    getPlaylist(globalRef,resp).then(resp=>{
+                        resolve(resp.musics);
+                    })
+                }
+                else{
+                    resolve(null)
                 }
             })
         })

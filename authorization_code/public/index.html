@@ -74,6 +74,10 @@
         <div class="pull-left">
           <img style="border-radius: 50%" class="media-object" width="150" src="{{images.0.url}}" />
         </div>
+        <div style="position: relative;display: flex;">
+          <input id="playlist-link-input" type="text" placeholder="Playlist link" name="search">
+          <button id="playlist-join-button">Join playlist</i></button>
+        </div>
         <!-- <div class="media-body">
           <dl class="dl-horizontal">
             <dt>Display name</dt><dd class="clearfix">{{display_name}}</dd>
@@ -107,7 +111,7 @@
           <tr style="height: 35px" >
             <td style="border-top: 1px solid black;border-right: 1px solid black;padding: 5px">
               {{name}}
-              <button class="btnGetTrack" id="{{id}}" style="background-color: lightgray;border: 0px;float: right" onclick="getTrack(this.id)"> >> </button>
+              <button class="btnGetTrack" id="{{id}}" ownerId={{owner.id}} style="background-color: lightgray;border: 0px;float: right" onclick="getTrack(this.id,this.getAttribute('ownerId'))"> >> </button>
             </td>
           </tr>
         {{/each}}
@@ -167,20 +171,134 @@
           })
         })
       }
-      function getTrack(playlistId) {
-        var playlistTracksSource = document.getElementById('playlists-tracks-template').innerHTML,
-            playlistTracksTemplate = Handlebars.compile(playlistTracksSource),
-            playlistTracksPlaceholder = document.getElementById('playlists-tracks');
-        var loadingVar = {};
-        playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(loadingVar);
-        console.log('getTrack');
-        var currentUserId;
+      function joinPlaylist(idsMusicas,playlistId){
         $.ajax({
           type: "GET",
           url: '/get_me',
         }).done(function(data) {
-          currentUserId = data.user.id;
           $.ajax({
+            type: "GET",
+            url: '/post_join_playlist',
+            data: {
+              'tracksId': idsMusicas,
+              'playlistId': playlistId,
+              'userId': data.user.id,
+            }
+          }).done(function(data) {
+            console.log('ok');
+            console.log(data);
+          })
+        })
+      }
+      function getTrack(playlistId,ownerId) {
+        var playlistTracksSource = document.getElementById('playlists-tracks-template').innerHTML,
+        playlistTracksTemplate = Handlebars.compile(playlistTracksSource),
+        playlistTracksPlaceholder = document.getElementById('playlists-tracks');
+        var loadingVar = {};
+        playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(loadingVar);
+        console.log('getTrack');
+        var trackIdsToAdd = [];
+        var currentUserId;
+        $.ajax({
+          type: "GET",
+          url: '/get_tracks_db',
+          data: {
+            playlistId:playlistId
+          }
+        }).done(function(data) {
+          trackIdsToAdd = [...new Set(Object.values(data.tracks).map(o=>o.musicID))];
+          $.ajax({
+            type: "GET",
+            url: '/get_me',
+          }).done(function(data) {
+            currentUserId = data.user.id;
+            if(currentUserId==ownerId){
+              console.log('owner');
+              $.ajax({
+                type: "GET",
+                url: '/playlist_tracks',
+                data: {
+                  'playlist_id': playlistId
+                }
+              }).done(function(data) {
+                var tracks = data.tracks.items;
+                tracks.forEach(obj=>{
+                  if(trackIdsToAdd.indexOf(obj.track.id)>-1){
+                    trackIdsToAdd.splice(trackIdsToAdd.indexOf(obj.track.id),1);
+                  }
+                })
+                $.ajax({
+                  type: "GET",
+                  url: '/get_tracks_by_id',
+                  data: {
+                    'tracksId': trackIdsToAdd
+                  }
+                }).done(function(data) {
+                  var traURI = [];
+                  if(data.tracks){
+                    if(data.track.tracks)traURI = data.tracks.tracks.map(o=>o.uri);
+                  }
+                  $.ajax({
+                    type: "GET",
+                    url: '/post_tracks_playlist',
+                    data: {
+                      'playlistId': playlistId,
+                      'tracksURIs': traURI
+                    }
+                  }).done(function(data) {
+                    //console.log(data.message);
+                    $.ajax({
+                      type: "GET",
+                      url: '/playlist_tracks',
+                      data: {
+                        'playlist_id': playlistId
+                      }
+                    }).done(function(data) {
+                      var tracks = data.tracks.items;
+                      uniq = [...new Set(tracks.map(o=>o.added_by.id))];
+                      uniq.forEach(o => {
+                        $.ajax({
+                          type: "GET",
+                          url: '/get_user',
+                          data: {
+                            'user_id': o
+                          }
+                        }).done(function(data) {
+                          var promises = [];
+                          tracks.forEach(obj=>{
+                            if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
+                            var request = $.ajax({
+                              type: "GET",
+                              url: '/get_track_rate',
+                              data: {
+                                'trackId': obj.track.id,
+                                'playlistId': playlistId,
+                                'userId': currentUserId,
+                              }
+                            }).done(function(data) {
+                              obj.track.rate = (data.rate);
+                            })
+                            promises.push(request);
+                          })
+                          $.when.apply(null, promises).done(function(){
+                            var toPass = {
+                              tracks: tracks,
+                              loaded: true,
+                              playlistId:playlistId
+                            }
+                            playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
+                          })
+                        });  
+                      });
+                      console.log(tracks);
+                    });
+                  })
+                })
+              })
+            }
+            else{
+              console.log('not owner');
+              $.ajax({
                 type: "GET",
                 url: '/playlist_tracks',
                 data: {
@@ -209,8 +327,6 @@
                           'userId': currentUserId,
                         }
                       }).done(function(data) {
-                        console.log('getting rates:');
-                        console.log(data);
                         obj.track.rate = (data.rate);
                       })
                       promises.push(request);
@@ -227,7 +343,9 @@
                 });
                 console.log(tracks);
               });
-          
+            }
+            
+          })
         })
       }
       (function() {
@@ -324,11 +442,42 @@
                     userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate(data.items);
                     console.log(items);
                     $('#get-user-playlist').hide();
+
+                    document.getElementById('playlist-join-button').addEventListener('click', function() {
+                      $.ajax({
+                        type: "GET",
+                        url: '/get_recently_played',
+                      }).done(function(data) {
+                        var uniqRecentPlayed = [...new Set(data.recentlyPlayed.items.map(o=>o.track.id))]
+                        joinPlaylist(uniqRecentPlayed,document.getElementById('playlist-link-input').value.split('playlist/')[1].split('?')[0]);
+                        //console.log(data.recentlyPlayed.items);
+                        console.log([...new Set(data.recentlyPlayed.items.map(o=>o.track.id + '-' + o.track.name))] );
+                      });
+                    }, false);
+                    /* 
+                    $.ajax({
+                      type: "GET",
+                      url: '/get_recently_played',
+                    }).done(function(data) {
+                      //console.log(data.recentlyPlayed.items);
+                      console.log([...new Set(data.recentlyPlayed.items.map(o=>o.track.id + '-' + o.track.name))] );
+                      $.ajax({
+                        type: "GET",
+                        url: '/get_audioFeatures_tracks',
+                        data: {
+                          tracks_id:[...new Set(data.recentlyPlayed.items.map(o=>o.track.id))]
+                        }
+                      }).done(function(data) {
+                        console.log(data.audioFeatures);
+                      });
+                    
+                    }); 
+                    */
+
                   });
                 }
             });
           } else {
-              // render initial screen
               $('#login').show();
               $('#loggedin').hide();
           }
@@ -363,6 +512,9 @@
               $('#get-user-playlist').hide();
             });
           }, false);
+
+          
+
         }
       })();
     </script>

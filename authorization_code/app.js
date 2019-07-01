@@ -55,7 +55,7 @@ app.get('/login', function(req, res) {
   res.cookie(stateKey, state);
 
   // your application requests authorization
-  var scope = 'user-read-private user-read-email user-read-recently-played playlist-read-private playlist-read-collaborative';
+  var scope = 'playlist-modify-public playlist-modify-private user-read-private user-read-email user-read-recently-played playlist-read-private playlist-read-collaborative';
   res.redirect('https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -178,9 +178,6 @@ app.get('/user_playlist', function(req, res) {
 });
 
 app.get('/playlist_tracks', function(req, res) {
-  console.log('oi');
-  console.log(req.query);
-  
   var playlist_id = req.query.playlist_id;
   console.log(playlist_id);
   spotifyApi.getPlaylistTracks(playlist_id)
@@ -222,10 +219,22 @@ app.get('/post_rank', function(req, res) {
   music_user.rate = rank
   
   database.pushRank(playlistId,music_user).then(resp=>{
-    console.log(resp);
+    //console.log(resp);
   });
   
   res.end('post done');
+});
+
+app.get('/post_join_playlist', function(req, res) {
+  var tracksId = req.query.tracksId;
+  var playlistId = req.query.playlistId;
+  var userId = req.query.userId;
+  
+  database.pushJoinPlaylist(playlistId,tracksId,userId).then(resp=>{
+    //console.log(resp);
+  });
+  
+  res.end('joined');
 });
 
 app.get('/get_track_rate', function(req, res) {
@@ -240,12 +249,86 @@ app.get('/get_track_rate', function(req, res) {
   music_user.rate = rank
   
   database.getTrackRate(playlistId,music_user).then(resp=>{
-    console.log(resp);
+    //console.log(resp);
     res.send({
       'rate': resp
     });
   });
 });
+
+app.get('/get_recently_played', function(req, res) {
+  spotifyApi.getMyRecentlyPlayedTracks({ limit: 2})
+  .then(function(data){
+      res.send({
+        'recentlyPlayed': data.body
+      });  
+    },function(err) {
+      console.log('Something went wrong!', err);
+      res.send("error1");
+    }
+  )
+});
+
+app.get('/get_audioFeatures_tracks', function(req, res) {
+  var tracks_ids = req.query.tracks_id;
+  spotifyApi.getAudioFeaturesForTracks(tracks_ids)
+  .then(function(data){
+      res.send({
+        'audioFeatures': data.body
+      });  
+    },function(err) {
+      console.log('Something went wrong!', err);
+      res.send("error1");
+    }
+  )
+
+});
+
+app.get('/post_tracks_playlist', function(req, res) {
+  var playlistId = req.query.playlistId;
+  var tracksURIs = req.query.tracksURIs;
+
+  spotifyApi.addTracksToPlaylist(playlistId,tracksURIs)
+  .then(function(data){
+      res.send({
+        'message': "tracks added"
+      });  
+    },function(err) {
+      console.log('Something went wrong!', err);
+      res.send("error1");
+    }
+  )
+});
+
+app.get('/get_tracks_db', function(req, res) {
+  var playlistId = req.query.playlistId;
+  database.getTracksOnDB(playlistId).then(resp=>{
+    res.send({
+      tracks:resp
+    })
+  })
+});
+
+app.get('/get_tracks_by_id', function(req, res) {
+  var tracksId = req.query.tracksId;
+  if(tracksId){
+    spotifyApi.getTracks(tracksId)
+    .then(function(data){
+        res.send({
+          'tracks': data.body
+        });  
+      },function(err) {
+        console.log('Something went wrong!', err);
+        res.send("error1");
+      }
+    )
+  }
+  else{
+    res.end("nothing to update");
+  }
+});
+
+
 
 
 //https://developer.spotify.com/console/get-current-user-top-artists-and-tracks/?type=artists&time_range=medium_term&limit=10&offset=5
