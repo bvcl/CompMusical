@@ -18,14 +18,14 @@ var SpotifyWebApi = require('spotify-web-api-node');
 var userInfo;
 // credentials are optional
 var spotifyApi = new SpotifyWebApi({
-  clientId: 'd0a977ff7e984164aba6e8f5c6523deb',
-  clientSecret: 'ff354fab75cf4131bdee3ff67220173a',
+  clientId: '2b748ffd807843cbbed3d02542d86909',
+  clientSecret: '80ad7a7f9221429ea671fbb74d92eba4',
   redirectUri: 'http://localhost:8888/callback'
 });
-var client_id = 'd0a977ff7e984164aba6e8f5c6523deb'; // Your client id
-var client_secret = 'ff354fab75cf4131bdee3ff67220173a'; // Your secret
-var redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
-
+var client_id = '2b748ffd807843cbbed3d02542d86909'; // Your client id
+var client_secret = '80ad7a7f9221429ea671fbb74d92eba4'; // Your secret
+var redirect_uri = 'http://localhost:8888/callback'; 
+var globalToken="";
 /**
  * Generates a random string containing numbers and letters
  * @param  {number} length The length of the string
@@ -55,7 +55,7 @@ app.get('/login', function(req, res) {
   res.cookie(stateKey, state);
 
   // your application requests authorization
-  var scope = 'playlist-modify-public playlist-modify-private user-read-private user-read-email user-read-recently-played playlist-read-private playlist-read-collaborative';
+  var scope = 'user-top-read playlist-modify-public playlist-modify-private user-read-private user-read-email user-read-recently-played playlist-read-private playlist-read-collaborative';
   res.redirect('https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -100,7 +100,7 @@ app.get('/callback', function(req, res) {
 
         var access_token = body.access_token,
             refresh_token = body.refresh_token;
-
+        globalToken = access_token;
         spotifyApi.setAccessToken(access_token);
         var options = {
           url: 'https://api.spotify.com/v1/me',
@@ -157,13 +157,19 @@ app.get('/get_me',function(req,res){
   })
 })
 
+app.get('/get_token',function(req,res){
+  res.send({
+    token:globalToken
+  })
+})
+
 app.get('/user_playlist', function(req, res) {
   spotifyApi.getMe()
   .then(function(data) {
     userInfo=data.body;
     spotifyApi.getUserPlaylists(data.body.id)
       .then(function(data) {
-        console.log('Retrieved playlists', data.body);
+        //console.log('Retrieved playlists', data.body);
          res.send({
           'items': data.body
         }); 
@@ -328,7 +334,36 @@ app.get('/get_tracks_by_id', function(req, res) {
   }
 });
 
+function makeMatrix(tracksJson){
+  var objValues = Object.values(tracksJson);
+  var musicIds = [...new Set(objValues.map(o=>o.musicID))];
+  var userIds = [...new Set(objValues.map(o=>o.UserID))];
+  var basicLine = [...new Array(musicIds.length)].map(x => 0);
+  var matrix = [];
+  //matrix.push(["-"].concat(musicIds));
+  for(i=0;i<userIds.length;i++)matrix.push(basicLine);
 
+  for(i=0;i<userIds.length;i++){
+    for(j=0;j<musicIds.length;j++){
+      var filtered = objValues.filter(o=>o.musicID==musicIds[j] && o.UserID==userIds[i]); 
+      if(filtered.length>0){
+        matrix[i][j]=Number(filtered[0].rate)
+      }
+      else matrix[i][j]=-1;
+    }
+  }
+
+  return {matrix:matrix,userIds:userIds,musicIds:musicIds};
+}
+
+app.get('/get_user_score_matrix', function(req, res) {
+  var playlistId = req.query.playlistId;
+  database.getTracksOnDB(playlistId).then(resp=>{
+    res.send({
+      score_matrix:makeMatrix(resp)
+    })
+  })
+});
 
 
 //https://developer.spotify.com/console/get-current-user-top-artists-and-tracks/?type=artists&time_range=medium_term&limit=10&offset=5

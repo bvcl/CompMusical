@@ -206,6 +206,20 @@
             playlistId:playlistId
           }
         }).done(function(data) {
+          /*
+          
+          $.ajax({
+            type: "GET",
+            url: '/get_user_score_matrix',
+            data: {
+              playlistId:playlistId
+            }
+          }).done(function(data) {
+            console.log("MATRIX");
+            console.log(data.score_matrix);
+          })
+            
+          */
           trackIdsToAdd = [...new Set(Object.values(data.tracks).map(o=>o.musicID))];
           $.ajax({
             type: "GET",
@@ -236,7 +250,7 @@
                 }).done(function(data) {
                   var traURI = [];
                   if(data.tracks){
-                    if(data.track.tracks)traURI = data.tracks.tracks.map(o=>o.uri);
+                    if(data.tracks.tracks)traURI = data.tracks.tracks.map(o=>o.uri);
                   }
                   $.ajax({
                     type: "GET",
@@ -446,13 +460,21 @@
                     document.getElementById('playlist-join-button').addEventListener('click', function() {
                       $.ajax({
                         type: "GET",
-                        url: '/get_recently_played',
+                        url: '/get_token',
                       }).done(function(data) {
-                        var uniqRecentPlayed = [...new Set(data.recentlyPlayed.items.map(o=>o.track.id))]
-                        joinPlaylist(uniqRecentPlayed,document.getElementById('playlist-link-input').value.split('playlist/')[1].split('?')[0]);
-                        //console.log(data.recentlyPlayed.items);
-                        console.log([...new Set(data.recentlyPlayed.items.map(o=>o.track.id + '-' + o.track.name))] );
-                      });
+                        authString = 'Bearer ' + data.token
+                        $.ajax({
+                          url: "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=2&offset=0",
+                          beforeSend: function(xhr) {
+                              xhr.setRequestHeader("Authorization", authString)
+                          }, success: function(data){
+                              //console.log(data);
+                              var uniqRecentPlayed = [...new Set(data.items.map(o=>o.id))]
+                              //console.log(uniqRecentPlayed);
+                              joinPlaylist(uniqRecentPlayed,document.getElementById('playlist-link-input').value.split('playlist/')[1].split('?')[0]);
+                          }
+                        })
+                      })
                     }, false);
                     /* 
                     $.ajax({
@@ -512,9 +534,6 @@
               $('#get-user-playlist').hide();
             });
           }, false);
-
-          
-
         }
       })();
     </script>
