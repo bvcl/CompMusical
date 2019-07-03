@@ -62,7 +62,8 @@ app.get('/login', function(req, res) {
       client_id: client_id,
       scope: scope,
       redirect_uri: redirect_uri,
-      state: state
+      state: state,
+      show_dialog:true
     }));
 });
 
@@ -317,6 +318,10 @@ app.get('/get_tracks_db', function(req, res) {
 
 app.get('/get_tracks_by_id', function(req, res) {
   var tracksId = req.query.tracksId;
+  console.log("TRACKSID");
+  
+  console.log(tracksId);
+  
   if(tracksId){
     spotifyApi.getTracks(tracksId)
     .then(function(data){
@@ -338,32 +343,123 @@ function makeMatrix(tracksJson){
   var objValues = Object.values(tracksJson);
   var musicIds = [...new Set(objValues.map(o=>o.musicID))];
   var userIds = [...new Set(objValues.map(o=>o.UserID))];
-  var basicLine = [...new Array(musicIds.length)].map(x => 0);
   var matrix = [];
-  //matrix.push(["-"].concat(musicIds));
-  for(i=0;i<userIds.length;i++)matrix.push(basicLine);
+  for(i=0;i<userIds.length;i++)matrix.push([...new Array(musicIds.length)].map(x => 0));
 
   for(i=0;i<userIds.length;i++){
     for(j=0;j<musicIds.length;j++){
-      var filtered = objValues.filter(o=>o.musicID==musicIds[j] && o.UserID==userIds[i]); 
+      var filtered = objValues.filter(o=>(o.musicID==musicIds[j] && o.UserID==userIds[i])); 
       if(filtered.length>0){
         matrix[i][j]=Number(filtered[0].rate)
       }
-      else matrix[i][j]=-1;
+      else{
+        matrix[i][j]=-2;
+      } 
     }
   }
-
   return {matrix:matrix,userIds:userIds,musicIds:musicIds};
 }
 
 app.get('/get_user_score_matrix', function(req, res) {
   var playlistId = req.query.playlistId;
   database.getTracksOnDB(playlistId).then(resp=>{
+    //leastMisery(makeMatrix(resp),2);
+    leastMisery({
+      matrix:[[3,1,2,4,5],[4,2,4,2,3],[5,5,3,4,3],[2,3,4,1,5]],
+      userIds:['U1','U2','U3','U4'],
+      musicIds:['T1','T2','T3','T4','T5']
+     },2);
     res.send({
       score_matrix:makeMatrix(resp)
     })
   })
 });
+
+function leastMisery(score_matrix,numberDesiredTracks){
+  var values = score_matrix.matrix;
+  var musicIds = score_matrix.musicIds;
+  var finalScore = [];
+
+  for(j=0;j<values[0].length;j++){
+    var menorValor = 6;
+    for(i=0;i<values.length;i++){
+      if(values[i][j]<menorValor && values[i][j]>-1)menorValor=values[i][j];
+    }
+    if(menorValor==6)menorValor=-1;
+    finalScore.push({leastMisery:menorValor,trackId:musicIds[j]});
+  }
+  finalScore.sort(function(a, b){
+    return a.leastMisery < b.leastMisery;
+  });
+  console.log(finalScore);
+  
+  console.log(finalScore.slice(0,numberDesiredTracks));
+  return  finalScore.slice(0,numberDesiredTracks)
+}
+
+function average(score_matrix,numberDesiredTracks){
+  var values = score_matrix.matrix;
+  var musicIds = score_matrix.musicIds;
+  var finalScore = [];
+
+  for(j=0;j<values[0].length;j++){
+    var avg = 0;
+    var countNulls=0;
+    for(i=0;i<values.length;i++){
+      if(values[i][j]==-1)countNulls++;
+      else if(values[i][j]==-2){
+        avg+=3;
+        //tratar missing values
+      }
+      else avg+=values[i][j];
+    }
+    avg = (avg/(values.length-countNulls))
+    finalScore.push({average:avg,trackId:musicIds[j]});
+  }
+  finalScore.sort(function(a, b){
+    return a.average < b.average;
+  });
+  console.log(finalScore.slice(0,numberDesiredTracks));
+  return  finalScore.slice(0,numberDesiredTracks)
+}
+
+function pluralityVoting(score_matrix,numberDesiredTracks){
+  var values = score_matrix.matrix;
+  var musicIds = score_matrix.musicIds;
+
+  for(i=0;i<values.length;i++){
+    for(j=0;j<values[0].length;j++){
+      if(values[i][j]!=-2)values[i][j] = {'rate':values[i][j],'trackId':musicIds[j]}
+      else values[i][j] = {'rate':3,'trackId':musicIds[j]}
+    }
+  }
+
+  var orderByUser = []
+  for(i=0;i<values.length;i++){
+    orderByUser.push([]);
+    orderByUser[i] = values[i].sort(function(a, b){
+      return a.rate < b.rate;
+    });
+  }
+  
+  var finalResults = [];
+  for(j=0;j<orderByUser[0].length;){
+    var occurences = [...new Array(musicIds.length)].map(x => 0);
+    for(i=0;i<orderByUser.length;i++){
+      occurences[musicIds.indexOf(orderByUser[i][j].trackId)]++;
+    }
+    
+    var highestOccurenceIndex = 0;
+    for(k=0;k<occurences.length;k++){
+      if(occurences[k] > occurences[highestOccurenceIndex])highestOccurenceIndex = k;
+    }
+    
+    for(p=0;p<orderByUser.length;p++)orderByUser[p] = orderByUser[p].filter(o=>o.trackId!=musicIds[highestOccurenceIndex])
+    
+    finalResults.push(musicIds[highestOccurenceIndex]);
+  }
+  return finalResults;
+}
 
 
 //https://developer.spotify.com/console/get-current-user-top-artists-and-tracks/?type=artists&time_range=medium_term&limit=10&offset=5

@@ -40,6 +40,9 @@
       .goldStar {
         color: gold;
       }
+      span[disabled] { 
+        pointer-events: none; 
+      }
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -125,20 +128,24 @@
         <!-- Table header -->
         <tr style="background-color: greenyellow">
             <th style="text-align: center;border-right: 1px solid black">Name</th>
-            <th style="text-align: center;border-right: 1px solid black">Adicionado por</th>
+            <!-- 
+              <th style="text-align: center;border-right: 1px solid black">Adicionado por</th>
+             -->
             <th style="text-align: center"> Nota </th>
         </tr>
         {{#each tracks}}
           <tr style="height: 35px" >
             <td style="border-top: 1px solid black;border-right: 1px solid black">{{this.track.name}}</td>
-            <td style="border-top: 1px solid black;border-right: 1px solid black">{{this.added_by.name}}</td>
-            <td style="border-top: 1px solid black;">
+            <!-- 
+              <td style="border-top: 1px solid black;border-right: 1px solid black">{{this.added_by.name}}</td>
+             -->
+            <td {{#compare this.track.rate -1 operator="=="}} style="cursor: not-allowed;border-top: 1px solid black;" {{/compare}} style="border-top: 1px solid black;">
                 <div class="rating">
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 5 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),5)">★</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 4 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),4)">★</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 3 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),3)">★</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 2 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),2)">★</span>
-                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate 1 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),1)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate -1 operator="=="}}disabled style="color: darkgray" {{/compare}} {{#compare this.track.rate 5 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),5)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate -1 operator="=="}}disabled style="color: darkgray" {{/compare}} {{#compare this.track.rate 4 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),4)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate -1 operator="=="}}disabled style="color: darkgray" {{/compare}} {{#compare this.track.rate 3 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),3)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate -1 operator="=="}}disabled style="color: darkgray" {{/compare}} {{#compare this.track.rate 2 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),2)">★</span>
+                  <span id="{{this.track.id}}" playlistId="{{../playlistId}}" {{#compare this.track.rate -1 operator="=="}}disabled style="color: darkgray" {{/compare}} {{#compare this.track.rate 1 operator=">="}}class="goldStar"{{/compare}} onclick="giveRank(this.id,this.getAttribute('playlistId'),1)">★</span>
                 </div>
             </td>
           </tr>
@@ -206,7 +213,8 @@
             playlistId:playlistId
           }
         }).done(function(data) {
-          /*
+          
+          
           
           $.ajax({
             type: "GET",
@@ -217,10 +225,12 @@
           }).done(function(data) {
             console.log("MATRIX");
             console.log(data.score_matrix);
-          })
+          }) 
+         
             
-          */
+          
           trackIdsToAdd = [...new Set(Object.values(data.tracks).map(o=>o.musicID))];
+          
           $.ajax({
             type: "GET",
             url: '/get_me',
@@ -241,6 +251,7 @@
                     trackIdsToAdd.splice(trackIdsToAdd.indexOf(obj.track.id),1);
                   }
                 })
+                if(trackIdsToAdd.length>50)trackIdsToAdd.splice(50);
                 $.ajax({
                   type: "GET",
                   url: '/get_tracks_by_id',
@@ -269,7 +280,31 @@
                       }
                     }).done(function(data) {
                       var tracks = data.tracks.items;
-                      uniq = [...new Set(tracks.map(o=>o.added_by.id))];
+                      var promises = [];
+                      tracks.forEach(obj=>{
+                        //if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
+                        var request = $.ajax({
+                          type: "GET",
+                          url: '/get_track_rate',
+                          data: {
+                            'trackId': obj.track.id,
+                            'playlistId': playlistId,
+                            'userId': currentUserId,
+                          }
+                        }).done(function(data) {
+                          obj.track.rate = (data.rate);
+                        })
+                        promises.push(request);
+                      })
+                      $.when.apply(null, promises).done(function(){
+                        var toPass = {
+                          tracks: tracks,
+                          loaded: true,
+                          playlistId:playlistId
+                        }
+                        playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
+                      })
+                      /* uniq = [...new Set(tracks.map(o=>o.added_by.id))];
                       uniq.forEach(o => {
                         $.ajax({
                           type: "GET",
@@ -278,32 +313,9 @@
                             'user_id': o
                           }
                         }).done(function(data) {
-                          var promises = [];
-                          tracks.forEach(obj=>{
-                            if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
-                            var request = $.ajax({
-                              type: "GET",
-                              url: '/get_track_rate',
-                              data: {
-                                'trackId': obj.track.id,
-                                'playlistId': playlistId,
-                                'userId': currentUserId,
-                              }
-                            }).done(function(data) {
-                              obj.track.rate = (data.rate);
-                            })
-                            promises.push(request);
-                          })
-                          $.when.apply(null, promises).done(function(){
-                            var toPass = {
-                              tracks: tracks,
-                              loaded: true,
-                              playlistId:playlistId
-                            }
-                            playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
-                          })
+                          
                         });  
-                      });
+                      }); */
                       console.log(tracks);
                     });
                   })
@@ -320,7 +332,32 @@
                 }
               }).done(function(data) {
                 var tracks = data.tracks.items;
-                uniq = [...new Set(tracks.map(o=>o.added_by.id))];
+                var promises = [];
+                tracks.forEach(obj=>{
+                  //if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
+                  var request = $.ajax({
+                    type: "GET",
+                    url: '/get_track_rate',
+                    data: {
+                      'trackId': obj.track.id,
+                      'playlistId': playlistId,
+                      'userId': currentUserId,
+                    }
+                  }).done(function(data) {
+                    obj.track.rate = (data.rate);
+                  })
+                  promises.push(request);
+                })
+                $.when.apply(null, promises).done(function(){
+                  var toPass = {
+                    tracks: tracks,
+                    loaded: true,
+                    playlistId:playlistId
+                  }
+                  playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
+                })
+
+                /* uniq = [...new Set(tracks.map(o=>o.added_by.id))];
                 uniq.forEach(o => {
                   $.ajax({
                     type: "GET",
@@ -329,32 +366,10 @@
                       'user_id': o
                     }
                   }).done(function(data) {
-                    var promises = [];
-                    tracks.forEach(obj=>{
-                      if(obj.added_by.id==o)obj.added_by.name = data.user.display_name;
-                      var request = $.ajax({
-                        type: "GET",
-                        url: '/get_track_rate',
-                        data: {
-                          'trackId': obj.track.id,
-                          'playlistId': playlistId,
-                          'userId': currentUserId,
-                        }
-                      }).done(function(data) {
-                        obj.track.rate = (data.rate);
-                      })
-                      promises.push(request);
-                    })
-                    $.when.apply(null, promises).done(function(){
-                      var toPass = {
-                        tracks: tracks,
-                        loaded: true,
-                        playlistId:playlistId
-                      }
-                      playlistTracksPlaceholder.innerHTML = playlistTracksTemplate(toPass);
-                    })
+                    
                   });  
-                });
+                }); */
+
                 console.log(tracks);
               });
             }
@@ -464,7 +479,7 @@
                       }).done(function(data) {
                         authString = 'Bearer ' + data.token
                         $.ajax({
-                          url: "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=2&offset=0",
+                          url: "https://api.spotify.com/v1/me/top/tracks?time_range=short_term&limit=20&offset=0",
                           beforeSend: function(xhr) {
                               xhr.setRequestHeader("Authorization", authString)
                           }, success: function(data){

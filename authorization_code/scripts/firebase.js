@@ -63,7 +63,7 @@ function getRateOfTrack(ref,playlistID,userId,trackId){
                     return;
                 }
             })
-            resolve(-1);
+            resolve(-2);
         })
     })
 }
@@ -163,9 +163,15 @@ module.exports = {
                 if(resp!=null){
                     var playListRef = resp;
                     getRateOfTrack(globalRef,resp,music_user.UserID,music_user.musicID).then(resp=>{
-                        //usuario ainda nao votou
-                        if(resp==-1){
+                        //usuario nao inseriu a musica nem votou
+                        if(resp==-2){
                             pushMusic(globalRef, playListRef, music_user)
+                            resolve(respReturn);
+                        }
+                        //usuario inseriu a musica
+                        else if(resp==-1){
+                            respReturn = 'usuario inseriu a musica'; 
+                            console.log('usuario inseriu a musica');
                             resolve(respReturn);
                         }
                         //usuario ja votou
